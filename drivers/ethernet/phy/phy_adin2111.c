@@ -19,6 +19,7 @@ LOG_MODULE_REGISTER(phy_adin2111, CONFIG_PHY_LOG_LEVEL);
 #include <zephyr/net/mii.h>
 #include <zephyr/drivers/mdio.h>
 #include <zephyr/drivers/mdio/mdio_adin2111.h>
+#include <zephyr/drivers/spi.h>
 
 /* PHYs out of reset check retry delay */
 #define ADIN2111_PHY_AWAIT_DELAY_POLL_US			15U
@@ -35,6 +36,7 @@ LOG_MODULE_REGISTER(phy_adin2111, CONFIG_PHY_LOG_LEVEL);
 
 /* ADIN2111 PHY identifier */
 #define ADIN2111_PHY_ID						0x0283BCA1U
+#define ADIN1110_PHY_ID						0x0283BC91U
 
 /* 10BASE-T1L PMA Status Register */
 #define ADIN2111_PHY_PMA_STATUS					0x000108F7U
@@ -107,6 +109,7 @@ struct phy_adin2111_config {
 	bool led0_en;
 	bool led1_en;
 	bool tx_24v;
+        struct spi_dt_spec spi;
 };
 
 struct phy_adin2111_data {
@@ -184,6 +187,10 @@ static int phy_adin2111_await_phy(const struct device *dev)
 	uint32_t count;
 	uint16_t val;
 
+
+        k_sleep(K_MSEC(100));
+        return 0;
+        
 	/**
 	 * Port 2 PHY comes out of reset after Port 1 PHY,
 	 * wait until both are out of reset.
@@ -336,9 +343,15 @@ static int phy_adin2111_init(const struct device *dev)
 	bool tx_24v_supported = false;
 	int ret;
 
-	data->state.is_up = false;
+        data->state.is_up = false;
 	data->state.speed = LINK_FULL_10BASE_T;
 
+        // Does not exist on ADIN1110 - what to do?
+        if (cfg->phy_addr == 2)
+        {
+            return 0;
+        }
+        
 	ret = phy_adin2111_await_phy(dev);
 	if (ret < 0) {
 		LOG_ERR("PHY %u didn't come out of reset, %d",
@@ -353,7 +366,7 @@ static int phy_adin2111_init(const struct device *dev)
 		return -ENODEV;
 	}
 
-	if (phy_id != ADIN2111_PHY_ID) {
+	if (phy_id != ADIN2111_PHY_ID && phy_id != ADIN1110_PHY_ID) {
 		LOG_ERR("PHY %u unexpected PHY ID %X", cfg->phy_addr, phy_id);
 		return -EINVAL;
 	}
@@ -498,6 +511,7 @@ static const struct ethphy_driver_api phy_adin2111_api = {
 		.led0_en = DT_INST_PROP(n, led0_en),				\
 		.led1_en = DT_INST_PROP(n, led1_en),				\
 		.tx_24v = !(DT_INST_PROP(n, disable_tx_mode_24v)),		\
+                .spi = NULL,                                                    \
 	};									\
 	static struct phy_adin2111_data phy_adin2111_data_##n = {		\
 		.sem = Z_SEM_INITIALIZER(phy_adin2111_data_##n.sem, 1, 1),	\

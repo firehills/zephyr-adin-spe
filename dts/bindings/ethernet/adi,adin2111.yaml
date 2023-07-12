@@ -40,7 +40,7 @@ compatible: "adi,adin2111"
 
 include: [spi-device.yaml]
 
-bus: adin2111
+bus: spi
 
 properties:
   int-gpios:

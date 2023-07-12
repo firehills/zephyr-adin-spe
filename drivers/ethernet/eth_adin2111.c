@@ -49,6 +49,23 @@ LOG_MODULE_REGISTER(eth_adin2111, CONFIG_ETHERNET_LOG_LEVEL);
 /* MAC Address Rule and DA Filter Port 2 slot/idx */
 #define ADIN2111_UNICAST_P2_ADDR_SLOT		3U
 
+// NASTY hack - struggling to get SPI configured for the PHY,
+// so change CONFIG_PHY_INIT_PRIORITY so its after Eth device,
+// such that 
+//
+// CONFIG_PHY_INIT_PRIORITY > CONFIG_ETH_INIT_PRIORITY > CONFIG_ETH_ADIN2111_INIT_PRIORITY
+// (Lover value == higher priority)
+//
+// Once ADIN has setup SPI(this works ok), blindly copy the SPI device ptr into the phy data
+// Its the same device doing the work !!!
+// 
+// FIXME !!
+#define SPI_HACK
+
+#ifdef SPI_HACK
+static struct spi_dt_spec* spi_working = NULL;
+#endif
+
 int eth_adin2111_lock(const struct device *dev, k_timeout_t timeout)
 {
 	struct adin2111_data *ctx = dev->data;
@@ -95,7 +112,28 @@ int eth_adin2111_reg_write(const struct device *dev, const uint16_t reg,
 	};
 	const struct spi_buf_set tx = { .buffers = &spi_tx_buf, .count = 1U };
 
+
+#ifdef SPI_HACK
+        int ret;
+        if ((spi_working != NULL) && (&cfg->spi != spi_working))
+        {
+           
+            ret = spi_write_dt(spi_working, &tx);
+        }
+        else
+        {
+            ret = spi_write_dt(&cfg->spi, &tx);
+            if (ret == 0)
+            {
+                spi_working = &cfg->spi;
+            }
+        }
+        
+              
+	return ret;
+#else  
 	return spi_write_dt(&cfg->spi, &tx);
+#endif
 }
 
 int eth_adin2111_reg_read(const struct device *dev, const uint16_t reg,
@@ -131,7 +169,19 @@ int eth_adin2111_reg_read(const struct device *dev, const uint16_t reg,
 	const struct spi_buf_set tx = { .buffers = &tx_buf, .count = 1U };
 	const struct spi_buf_set rx = { .buffers = &rx_buf, .count = 1U };
 
-	ret = spi_transceive_dt(&cfg->spi, &tx, &rx);
+#ifdef SPI_HACK
+        if ((spi_working != NULL) && (&cfg->spi != spi_working))
+        {
+            //printf("FIX\n");
+            ret = spi_transceive_dt(spi_working, &tx, &rx);
+        }
+        else
+        {
+            ret = spi_transceive_dt(&cfg->spi, &tx, &rx);
+        }
+#else
+        ret = spi_transceive_dt(&cfg->spi, &tx, &rx);
+#endif
 	if (ret < 0) {
 		return ret;
 	}
@@ -727,7 +777,7 @@ static int adin2111_check_spi(const struct device *dev)
 	for (count = 0U; count < ADIN2111_DEV_AWAIT_RETRY_COUNT; ++count) {
 		ret = eth_adin2111_reg_read(dev, ADIN2111_PHYID, &val);
 		if (ret >= 0) {
-			if (val == ADIN2111_PHYID_RST_VAL) {
+			if (val == ADIN2111_PHYID_RST_VAL || val == ADIN1110_PHYID_RST_VAL) {
 				break;
 			}
 			ret = -ETIMEDOUT;
@@ -962,7 +1012,7 @@ static const struct ethernet_api adin2111_port_api = {
 		.spi = SPI_DT_SPEC_INST_GET(inst, ADIN2111_SPI_OPERATION, 1),			\
 		.interrupt = GPIO_DT_SPEC_INST_GET(inst, int_gpios),				\
 		.reset = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, { 0 }),			\
-	};											\
+	};                                                                                      \
 	static struct adin2111_data adin2111_data_##inst = {					\
 		.ifaces_left_to_init = 2U,							\
 		.port = {},									\

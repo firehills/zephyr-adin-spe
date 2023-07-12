@@ -20,6 +20,7 @@
 #define ADIN2111_PHYID				0x01U
 /* PHY Identification Register Reset Value */
 #define ADIN2111_PHYID_RST_VAL			0x0283BCA1U
+#define ADIN1110_PHYID_RST_VAL			0x0283BC91U
 
 /* Reset Control and Status Register */
 #define ADIN2111_RESET				0x03U

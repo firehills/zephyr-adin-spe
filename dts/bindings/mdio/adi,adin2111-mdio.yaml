@@ -7,7 +7,7 @@ compatible: "adi,adin2111-mdio"
 
 include: mdio-controller.yaml
 
-on-bus: adin2111
+on-bus: spi
 
 properties:
   "#address-cells":
