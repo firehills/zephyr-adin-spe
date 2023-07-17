@@ -27,16 +27,16 @@
           status = "okay";
         
           reg = <0x0>;
-          spi-max-frequency = <4000000>;
+          spi-max-frequency = <8000000>;
           int-gpios   = <&gpio0 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
           reset-gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
 	
           port1 {
-             local-mac-address = [ 11 22 33 44 55 66 ];
+             local-mac-address = [ 00 06 8E 41 41 41 ];
           };
 
           port2 {
-             local-mac-address = [ 77 77 77 77 77 77 ];
+             local-mac-address = [ 00 06 8E 77 77 77 ];
              
           };
           
