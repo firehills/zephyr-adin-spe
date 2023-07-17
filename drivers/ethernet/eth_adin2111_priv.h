@@ -129,7 +129,7 @@
 #define ADIN2111_WRITE_HEADER_SIZE		ADIN2111_SPI_HEADER_SIZE
 /* SPI header size for read transaction (1 for TA) */
 #define ADIN2111_READ_HEADER_SIZE		(ADIN2111_SPI_HEADER_SIZE + 1U)
-
+#define ADIN2111_READ_FOOTER_SIZE               4U
 /* SPI register write buffer size without CRC */
 #define ADIN2111_REG_WRITE_BUF_SIZE		(ADIN2111_WRITE_HEADER_SIZE + sizeof(uint32_t))
 /* SPI register write buffer with appended CRC size (1 for header, 1 for register) */

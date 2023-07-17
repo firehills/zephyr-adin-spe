@@ -232,8 +232,8 @@ static int adin2111_read_fifo(const struct device *dev, const uint8_t port)
 
 	/* burst read must be in multiples of 4 */
 	padding_len = ((fsize % 4) == 0) ? 0U : (ROUND_UP(fsize, 4U) - fsize);
-	/* actual frame length is FSIZE - FRAME HEADER */
-	fsize_real = fsize - ADIN2111_FRAME_HEADER_SIZE;
+	/* actual frame length is FSIZE - FRAME HEADER - FRAME_FOOTER */
+	fsize_real = fsize - ADIN2111_FRAME_HEADER_SIZE - ADIN2111_READ_FOOTER_SIZE;
 
 	/* spi header */
 	*(uint16_t *)cmd_buf = htons((ADIN2111_READ_TXN_CTRL | rx_reg));
@@ -247,11 +247,14 @@ static int adin2111_read_fifo(const struct device *dev, const uint8_t port)
 	cmd_buf[2] = 0U;
 #endif /* CONFIG_ETH_ADIN2111_SPI_CFG0 */
 
+        // needs to have the temp_xxx buffer, if just NULL, doesnt work?
+        uint8_t temp_cmd[sizeof(cmd_buf) + ADIN2111_FRAME_HEADER_SIZE];
+        uint8_t temp_pad[padding_len];
 	const struct spi_buf tx_buf = { .buf = cmd_buf, .len = sizeof(cmd_buf) };
 	const struct spi_buf rx_buf[3] = {
-		{.buf = NULL, .len = sizeof(cmd_buf) + ADIN2111_FRAME_HEADER_SIZE},
-		{.buf = ctx->buf, .len = fsize_real},
-		{.buf = NULL, .len = padding_len }
+		{.buf = temp_cmd, .len = sizeof(cmd_buf) + ADIN2111_FRAME_HEADER_SIZE},
+		{.buf = ctx->buf, .len = fsize_real + ADIN2111_READ_FOOTER_SIZE},
+		{.buf = temp_pad, .len = padding_len }
 	};
 	const struct spi_buf_set tx = { .buffers = &tx_buf, .count = 1U };
 	const struct spi_buf_set rx = {
@@ -266,6 +269,34 @@ static int adin2111_read_fifo(const struct device *dev, const uint8_t port)
 		return ret;
 	}
 
+
+#if 0
+        printf("RX -> Reported Frame Size with header Len %d\n", fsize);
+        
+        if (rx.count == 2)
+        {
+            printf("RX -> Actual SPI RX Len %d+%d=%d \n", rx.buffers[0].len, rx.buffers[1].len, rx.buffers[0].len + rx.buffers[1].len);
+        }
+        if (rx.count == 3)
+        {
+            printf("RX -> Actual SPI RX Len %d+%d+%d=%d \n", rx.buffers[0].len, rx.buffers[1].len, rx.buffers[2].len,  rx.buffers[0].len + rx.buffers[1].len + rx.buffers[2].len);
+        }
+
+        printf("RX -> FRAME(%d) = ", fsize_real);
+        for(int ii=0; ii<fsize_real; ii++)
+        {
+            printf("%02x ", ctx->buf[ii]);
+        }
+        printf("\n");
+#endif
+
+
+
+
+
+
+
+        
 	pkt = net_pkt_rx_alloc_with_buffer(iface, fsize_real, AF_UNSPEC, 0,
 					   K_MSEC(CONFIG_ETH_ADIN2111_TIMEOUT));
 	if (!pkt) {
@@ -528,8 +559,24 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 		goto end_unlock;
 	}
 
+#if 0
+        printf("TX -> Original Frame Size %d\n", pkt_len);
+        if (pkt_len < 64)
+        {
+            printf("TX -> Padding <64 = %d\n", 64 - pkt_len);
+        }
+        printf("TX -> Setting FIFO padded size + header = %d\n", padded_size);
+        
+        printf("TX -> FRAME(%d) = ", pkt_len);
+        for(int ii=0; ii<pkt_len; ii++)
+        {
+            printf("%02x ", ctx->buf[header_size + ADIN2111_FRAME_HEADER_SIZE + ii]);
+        }
+        printf("\n");
+#endif
+        
 	/* write transmit size */
-	ret = eth_adin2111_reg_write(adin, ADIN2111_TX_FSIZE, padded_size);
+	ret = eth_adin2111_reg_write(adin, ADIN2111_TX_FSIZE, padded_size+4);
 	if (ret < 0) {
 		eth_stats_update_errors_tx(data->iface);
 		LOG_ERR("Port %u write FSIZE failed, %d", cfg->port_idx, ret);
@@ -539,10 +586,20 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 	/* write transaction */
 	const struct spi_buf buf = {
 		.buf = ctx->buf,
-		.len = header_size + burst_size
+		.len = header_size + burst_size + 4 + 4
 	};
 	const struct spi_buf_set tx = { .buffers = &buf, .count = 1U };
 
+
+
+#if 0
+        printf("+++++++++++++++++++++\nSPI TX bytes=%d (orig %d)\n SPI=", tx.buffers[0].len, pkt_len);
+        for (int ii=0; ii<tx.buffers[0].len; ii++)
+        {
+            printf("%02X ", ctx->buf[ii]);
+        }
+        printf("\n+++++++++++++++++\n");
+#endif
 	ret = spi_write_dt(&((const struct adin2111_config *) adin->config)->spi,
 			   &tx);
 	if (ret < 0) {
@@ -1014,7 +1071,7 @@ static const struct ethernet_api adin2111_port_api = {
 		.reset = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, { 0 }),			\
 	};                                                                                      \
 	static struct adin2111_data adin2111_data_##inst = {					\
-		.ifaces_left_to_init = 2U,							\
+		.ifaces_left_to_init = 1U,							\
 		.port = {},									\
 		.offload_sem = Z_SEM_INITIALIZER(adin2111_data_##inst.offload_sem, 0, 1),	\
 		.lock = Z_MUTEX_INITIALIZER(adin2111_data_##inst.lock),				\
