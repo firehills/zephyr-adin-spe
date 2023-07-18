@@ -576,7 +576,7 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 #endif
         
 	/* write transmit size */
-	ret = eth_adin2111_reg_write(adin, ADIN2111_TX_FSIZE, padded_size+4);
+	ret = eth_adin2111_reg_write(adin, ADIN2111_TX_FSIZE, padded_size);
 	if (ret < 0) {
 		eth_stats_update_errors_tx(data->iface);
 		LOG_ERR("Port %u write FSIZE failed, %d", cfg->port_idx, ret);
@@ -586,7 +586,7 @@ static int adin2111_port_send(const struct device *dev, struct net_pkt *pkt)
 	/* write transaction */
 	const struct spi_buf buf = {
 		.buf = ctx->buf,
-		.len = header_size + burst_size + 4 + 4
+		.len = header_size + burst_size 
 	};
 	const struct spi_buf_set tx = { .buffers = &buf, .count = 1U };
 
